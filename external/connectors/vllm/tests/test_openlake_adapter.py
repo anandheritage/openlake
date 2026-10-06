@@ -762,14 +762,23 @@ class OpenLakeSchedulerLookupTests(unittest.TestCase):
                     scheduler._coord.find_longest_cache_hit.assert_not_called()
                     self.assertEqual(scheduler._loads, {})
 
-    def test_single_block_prompt_has_no_reusable_external_tokens(self):
-        scheduler, request = self._make_scheduler(16, min_lookup_tokens=0)
+    def test_prompts_up_to_one_block_have_no_reusable_external_tokens(self):
+        for block_size in (16, 32, 128):
+            for num_tokens in (0, 1, block_size - 1, block_size):
+                with self.subTest(block_size=block_size, num_tokens=num_tokens):
+                    scheduler, request = self._make_scheduler(
+                        num_tokens, block_size=block_size, min_lookup_tokens=0,
+                    )
 
-        self.assertEqual(scheduler.get_num_new_matched_tokens(request, 0),
-                         (0, False))
+                    self.assertEqual(
+                        scheduler.get_num_new_matched_tokens(request, 0),
+                        (0, False),
+                    )
 
-        scheduler._client.batch_is_exist.assert_not_called()
-        self.assertEqual(scheduler._loads, {})
+                    scheduler._client.batch_is_exist.assert_not_called()
+                    scheduler._coord.lookup_mask.assert_not_called()
+                    scheduler._coord.find_longest_cache_hit.assert_not_called()
+                    self.assertEqual(scheduler._loads, {})
 
     def test_external_lookup_still_loads_tokens_beyond_local_hit(self):
         for num_tokens, local_tokens, expected_tokens in (

@@ -1540,9 +1540,6 @@ class OpenLakeScheduler:
     ) -> tuple[int | None, bool]:
         if request.num_prompt_tokens < self._min_external_lookup_tokens:
             return 0, False
-        token_len = request.num_tokens // self._sched_bs * self._sched_bs
-        if token_len < self._sched_bs:
-            return 0, False
         # The final token must be recomputed for logits. Skip storage lookup
         # when the local cache already covers every reusable full block.
         max_external_tokens = (
@@ -1550,11 +1547,12 @@ class OpenLakeScheduler:
         )
         if num_computed_tokens >= max_external_tokens:
             return 0, False
+        token_len = request.num_tokens // self._sched_bs * self._sched_bs
         exists = self._gather_exists(request.block_hashes, token_len)
         _, ext = self._coord.find_longest_cache_hit(
             request.block_hashes, token_len, _ExistsPool(self._hash_bs, exists))
         if ext == request.num_tokens:
-            ext = max(0, (request.num_tokens - 1) // self._sched_bs * self._sched_bs)
+            ext = max_external_tokens
         need = ext - num_computed_tokens
         if need <= 0:
             return 0, False
